@@ -1,0 +1,6 @@
+{
+  "name": "Trading Analysis Tool",
+  "description": "Professional market analysis platform for Even/Odd, Over/Under, Matches/Differs, and Rise/Fall synthetic derivative markets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
