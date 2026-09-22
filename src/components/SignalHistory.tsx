@@ -26,10 +26,20 @@ export const SignalHistory: React.FC<SignalHistoryProps> = ({
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'INVALIDATED' | 'EXPIRED'>('ALL');
   const [isOpen, setIsOpen] = useState<boolean>(true);
 
-  const filteredItems = history.filter((item) => {
-    if (filter === 'ALL') return true;
-    return item.status === filter;
-  });
+  // Automatically prioritize valid active signals at the top, with newest signals shown first
+  const filteredItems = history
+    .filter((item) => {
+      if (filter === 'ALL') return true;
+      return item.status === filter;
+    })
+    .sort((a, b) => {
+      const aActive = a.status === 'ACTIVE' ? 1 : 0;
+      const bActive = b.status === 'ACTIVE' ? 1 : 0;
+      if (aActive !== bActive) {
+        return bActive - aActive; // Valid ACTIVE signals prioritized at the top
+      }
+      return (b.createdAt || 0) - (a.createdAt || 0); // Newest signals first
+    });
 
   const activeCount = history.filter((i) => i.status === 'ACTIVE').length;
   const invalidatedCount = history.filter((i) => i.status === 'INVALIDATED').length;
@@ -202,7 +212,7 @@ export const SignalHistory: React.FC<SignalHistoryProps> = ({
                       {isActive && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-500/60 shadow-xs">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                          ACTIVE ({item.durationSecs}s)
+                          ACTIVE ({item.expiresAt ? `${Math.max(0, Math.ceil((item.expiresAt - Date.now()) / 1000))}s left` : `${item.durationSecs}s`})
                         </span>
                       )}
                       {isInvalid && (

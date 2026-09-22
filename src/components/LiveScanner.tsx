@@ -15,8 +15,25 @@ export const LiveScanner: React.FC<LiveScannerProps> = ({
   onOpenModal,
   onSwitchTool,
 }) => {
-  // Sort markets by confidence descending (≥ 85% at top)
-  const sortedMarkets = [...markets].sort((a, b) => b.prediction.confidence - a.prediction.confidence);
+  // Sort markets: valid active signals prioritized at top with newest valid signal shown first
+  const sortedMarkets = [...markets].sort((a, b) => {
+    const aValid = (a.scanState === 'SIGNAL_ACTIVE' || a.scanState === 'MARKET_CHANGING') && a.prediction.confidence >= 85 ? 1 : 0;
+    const bValid = (b.scanState === 'SIGNAL_ACTIVE' || b.scanState === 'MARKET_CHANGING') && b.prediction.confidence >= 85 ? 1 : 0;
+
+    if (aValid !== bValid) {
+      return bValid - aValid; // Valid active signals at the top
+    }
+
+    if (aValid && bValid) {
+      const aTime = a.signalGeneratedAt || a.lastUpdated || 0;
+      const bTime = b.signalGeneratedAt || b.lastUpdated || 0;
+      if (bTime !== aTime) {
+        return bTime - aTime; // Newest valid signal first
+      }
+    }
+
+    return b.prediction.confidence - a.prediction.confidence;
+  });
   const tradeReadyMarkets = sortedMarkets.filter((m) => m.prediction.confidence >= 85);
   const topPicks = sortedMarkets.slice(0, 4);
 

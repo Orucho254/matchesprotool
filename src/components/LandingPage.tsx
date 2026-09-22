@@ -55,8 +55,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
-  const [username, setUsername] = useState<string>('matchestool254');
-  const [password, setPassword] = useState<string>('tool911');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(false);
@@ -737,7 +737,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="matchestool254"
+                    placeholder="Enter username"
                     className="w-full pl-9 pr-3 py-2 text-xs bg-slate-900 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 font-mono"
                   />
                 </div>

@@ -67,14 +67,35 @@ class MarketSignalAlertService {
 
   public getAllActiveAlerts(): MarketSignalAlert[] {
     const validContractType = this.toolToContractType(this.currentTool);
+    const now = Date.now();
     let alerts = Array.from(this.activeAlerts.values());
+
+    // Strict 1-minute validity timer: prune and remove any expired signals
+    alerts = alerts.filter((a) => {
+      const isExpired = (a.expiresAt && now >= a.expiresAt) || (now - a.timestamp >= 60000);
+      if (isExpired) {
+        for (const [k, val] of this.activeAlerts.entries()) {
+          if (val.id === a.id) {
+            this.activeAlerts.delete(k);
+            break;
+          }
+        }
+        return false;
+      }
+      return true;
+    });
 
     if (validContractType) {
       alerts = alerts.filter((a) => a.contractType === validContractType);
     }
 
-    // Sort descending by confidence so the most favourable and strongest signals are first
-    return alerts.sort((a, b) => b.confidence - a.confidence);
+    // Strictly prioritize the newest valid signal first, then by confidence
+    return alerts.sort((a, b) => {
+      if (b.timestamp !== a.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+      return b.confidence - a.confidence;
+    });
   }
 
   public getStrongestAlert(): MarketSignalAlert | null {
@@ -240,7 +261,13 @@ class MarketSignalAlertService {
           }
 
           const existingAlert = this.activeAlerts.get(key);
-          const alertId = existingAlert ? existingAlert.id : `${market.symbol}-${contract.type}-${now}`;
+          // If signal was generated over 1 minute ago, it has expired and must be refreshed or purged
+          const isExpired = existingAlert && (now - existingAlert.timestamp >= 60000);
+          const effectiveAlert = isExpired ? undefined : existingAlert;
+
+          const alertId = effectiveAlert ? effectiveAlert.id : `${market.symbol}-${contract.type}-${now}`;
+          const alertTimestamp = effectiveAlert ? effectiveAlert.timestamp : now;
+          const expiresAt = alertTimestamp + 60000; // 1-minute validity timer
 
           const updatedAlert: MarketSignalAlert = {
             id: alertId,
@@ -257,12 +284,13 @@ class MarketSignalAlertService {
             lastDigit: market.lastDigit,
             currentPrice: market.currentPrice,
             targetDigit: prediction.targetDigit,
-            timestamp: existingAlert ? existingAlert.timestamp : now,
+            timestamp: alertTimestamp,
+            expiresAt,
             timeFormatted,
           };
 
           // Check if newly discovered or superior to previous top opportunity
-          const isNewlyFormed = !existingAlert;
+          const isNewlyFormed = !effectiveAlert;
           const dismissedAt = this.dismissedAlertKeys.get(key);
           const isDismissCooldown = dismissedAt && now - dismissedAt < 30000;
 

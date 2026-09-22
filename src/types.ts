@@ -43,6 +43,8 @@ export interface SignalHistoryItem {
   status: 'ACTIVE' | 'EXPIRED' | 'INVALIDATED' | 'WAIT';
   invalidationReason?: string;
   durationSecs: number;
+  createdAt: number;
+  expiresAt: number;
 }
 
 export interface DigitPredictionSignal {
@@ -290,6 +292,7 @@ export interface DerivMarketItem {
     timestamp: number;
   } | null;
   activeSignalId?: string;
+  signalGeneratedAt?: number;
   prediction: MarketPrediction;
   stats: MarketStats;
   isStreaming: boolean;
@@ -362,6 +365,7 @@ export interface MarketSignalAlert {
   currentPrice: number;
   targetDigit?: number;
   timestamp: number;
+  expiresAt?: number;
   timeFormatted: string;
 }
 

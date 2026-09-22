@@ -136,14 +136,15 @@ class DerivWsService {
   }
 
   private addHistoryRecord(market: DerivMarketItem, status: 'ACTIVE' | 'EXPIRED' | 'INVALIDATED' | 'WAIT') {
-    const timeStr = new Date().toLocaleTimeString([], {
+    const now = Date.now();
+    const timeStr = new Date(now).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
     });
 
     const newItem: SignalHistoryItem = {
-      id: market.activeSignalId || `${market.symbol}-${Date.now()}`,
+      id: market.activeSignalId || `${market.symbol}-${now}`,
       time: timeStr,
       marketName: market.displayName,
       symbol: market.symbol,
@@ -152,12 +153,14 @@ class DerivWsService {
       recommendedTrade: market.prediction.recommendedTrade || market.prediction.primarySignal,
       confidence: market.prediction.confidence,
       status,
-      durationSecs: this.tradingWindowDuration,
+      durationSecs: 60, // Exactly 1-minute validity timer
+      createdAt: now,
+      expiresAt: now + 60 * 1000,
       invalidationReason: market.invalidationAlert?.message,
     };
 
-    // Prepend and keep max 50 items
-    this.historyLog = [newItem, ...this.historyLog.slice(0, 49)];
+    // Prepend so the newest signal always appears at the top of the signal list
+    this.historyLog = [newItem, ...this.historyLog.filter((h) => h.id !== newItem.id).slice(0, 49)];
     this.notifyHistory();
   }
 
@@ -330,13 +333,15 @@ class DerivWsService {
             const isEligible = prediction.isTradeReady && prediction.confidence >= 85;
 
             if (isEligible) {
-              const signalId = `${market.symbol}-${Date.now()}`;
+              const now = Date.now();
+              const signalId = `${market.symbol}-${now}`;
               const updatedItem: DerivMarketItem = {
                 ...market,
                 scanState: 'SIGNAL_ACTIVE',
                 scanProgress: 100,
-                countdown: this.tradingWindowDuration,
-                totalCycleTime: this.tradingWindowDuration,
+                countdown: 60, // Exact 1-minute validity timer as requested
+                totalCycleTime: 60,
+                signalGeneratedAt: now,
                 signalStability: 'STABLE',
                 activeSignalId: signalId,
                 previousSignal: undefined,
@@ -424,6 +429,8 @@ class DerivWsService {
               totalCycleTime: SCAN_DURATION,
               signalStability: 'SEARCHING',
               invalidationAlert: null,
+              activeSignalId: undefined,
+              signalGeneratedAt: undefined,
             };
           }
 
@@ -483,6 +490,23 @@ class DerivWsService {
 
         return market;
       });
+
+      // Automatically expire any active signals in historyLog after 1 minute (60,000ms)
+      const now = Date.now();
+      let historyExpired = false;
+      this.historyLog = this.historyLog.map((item) => {
+        if (item.status === 'ACTIVE' && item.expiresAt && now >= item.expiresAt) {
+          historyExpired = true;
+          return {
+            ...item,
+            status: 'EXPIRED' as const,
+          };
+        }
+        return item;
+      });
+      if (historyExpired) {
+        this.notifyHistory();
+      }
 
       this.notifyListeners();
     }, 1000);

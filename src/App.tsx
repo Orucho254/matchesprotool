@@ -22,6 +22,7 @@ import { MarketGrid } from './components/MarketGrid';
 import { MarketModal } from './components/MarketModal';
 import { LiveScanner } from './components/LiveScanner';
 import { SignalHistory } from './components/SignalHistory';
+import { MatchesDiffersTemplate } from './components/MatchesDiffersTemplate';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
 
@@ -379,12 +380,17 @@ export function App() {
           categorySignalCounts={categorySignalCounts}
         />
 
-        {/* 3. Main Display: Either Live Scanner Matrix or Full Market Grid */}
+        {/* 3. Main Display: Live Scanner Matrix, dedicated Matches & Differs template, or Full Market Grid */}
         {currentTool === 'SCANNER' ? (
           <LiveScanner
             markets={filteredMarkets}
             onOpenModal={setSelectedMarketModal}
             onSwitchTool={handleSelectTool}
+          />
+        ) : currentTool === 'MATCHES' ? (
+          <MatchesDiffersTemplate
+            markets={markets}
+            onOpenModal={setSelectedMarketModal}
           />
         ) : (
           <MarketGrid
@@ -394,8 +400,8 @@ export function App() {
           />
         )}
 
-        {/* 4. Live Prediction & Signal Audit History Log */}
-        {showHistory && (
+        {/* 4. Live Prediction & Signal Audit History Log (shown when enabled and not on MATCHES dedicated view) */}
+        {showHistory && currentTool !== 'MATCHES' && (
           <SignalHistory
             history={history}
             onClearHistory={handleClearHistory}

@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-// Server-side user store with salted SHA-256 hashes
+// Server-side user store with PBKDF2-SHA256 hashes
 interface ServerUser {
   id: string;
   username: string;
@@ -16,25 +16,74 @@ interface ServerUser {
 }
 
 function hashPasswordNode(password: string, salt: string): string {
-  return crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+  return crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
 }
 
-const demoSalt = '7c9f4d1e2b8a05c6e3f1947265a8d9b0';
-const demoHash = hashPasswordNode('QuantumTrade2026!', demoSalt);
+// Secure server-side credential store (never exposed to client)
+const AUTHORIZED_SALT = 'b91a7f43c2e84196da5e01b3f827ce45';
+const AUTHORIZED_HASH = hashPasswordNode('tool911', AUTHORIZED_SALT);
 
 const serverUsers: ServerUser[] = [
   {
-    id: 'usr_demo_01',
-    username: 'demo_trader',
-    email: 'trader@deriv-quant.ai',
+    id: 'usr_matchestool254',
+    username: 'matchestool254',
+    email: 'matchestool254@trading-analysis.internal',
     role: 'PRO_TRADER',
-    salt: demoSalt,
-    passwordHash: demoHash,
-    createdAt: new Date().toISOString(),
+    salt: AUTHORIZED_SALT,
+    passwordHash: AUTHORIZED_HASH,
+    createdAt: '2026-01-01T00:00:00.000Z',
   },
 ];
 
-const activeTokens = new Set<string>();
+interface SessionData {
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    role: string;
+    createdAt: string;
+  };
+  expiresAt: number;
+}
+
+const activeTokens = new Map<string, SessionData>();
+
+// Server-side Brute-force Rate Limiter
+interface LockoutEntry {
+  failedAttempts: number;
+  lockedUntil: number | null;
+  lastAttemptAt: number;
+}
+const lockoutStore = new Map<string, LockoutEntry>();
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+
+function checkLockout(identifier: string): { isLocked: boolean; remainingSec: number } {
+  const entry = lockoutStore.get(identifier);
+  if (!entry) return { isLocked: false, remainingSec: 0 };
+  if (entry.lockedUntil && entry.lockedUntil > Date.now()) {
+    const remainingSec = Math.ceil((entry.lockedUntil - Date.now()) / 1000);
+    return { isLocked: true, remainingSec };
+  }
+  return { isLocked: false, remainingSec: 0 };
+}
+
+function recordFailure(identifier: string): { isLocked: boolean; remainingSec: number } {
+  const entry = lockoutStore.get(identifier) || { failedAttempts: 0, lockedUntil: null, lastAttemptAt: Date.now() };
+  entry.failedAttempts += 1;
+  entry.lastAttemptAt = Date.now();
+  if (entry.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    lockoutStore.set(identifier, entry);
+    return { isLocked: true, remainingSec: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+  }
+  lockoutStore.set(identifier, entry);
+  return { isLocked: false, remainingSec: 0 };
+}
+
+function clearFailures(identifier: string) {
+  lockoutStore.delete(identifier);
+}
 
 async function startServer() {
   const app = express();
@@ -52,76 +101,66 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Auth: Login Endpoint
+  // Auth: Login Endpoint (Strictly server-side verified)
   app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const user = serverUsers.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+    const cleanUser = String(username).trim().toLowerCase();
+    const lockout = checkLockout(cleanUser);
+    if (lockout.isLocked) {
+      return res.status(429).json({
+        error: `Account temporarily locked due to repeated failed login attempts. Please wait ${lockout.remainingSec}s before retrying.`,
+        isLocked: true,
+        remainingSec: lockout.remainingSec,
+      });
     }
 
-    const computed = hashPasswordNode(password, user.salt);
-    if (computed !== user.passwordHash) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+    const user = serverUsers.find((u) => u.username.toLowerCase() === cleanUser);
+    if (!user) {
+      const fail = recordFailure(cleanUser);
+      return res.status(401).json({
+        error: 'Access denied: Invalid credentials. You must insert correct credentials.',
+        isLocked: fail.isLocked,
+        remainingSec: fail.remainingSec,
+      });
     }
+
+    const computed = hashPasswordNode(String(password), user.salt);
+    if (computed !== user.passwordHash) {
+      const fail = recordFailure(cleanUser);
+      return res.status(401).json({
+        error: 'Access denied: Invalid credentials. You must insert correct credentials.',
+        isLocked: fail.isLocked,
+        remainingSec: fail.remainingSec,
+      });
+    }
+
+    // Success: clear lockout
+    clearFailures(cleanUser);
 
     const token = crypto.randomBytes(32).toString('hex');
-    activeTokens.add(token);
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt,
-      },
-    });
-  });
-
-  // Auth: Register Endpoint
-  app.post('/api/auth/register', (req, res) => {
-    const { username, password, email } = req.body;
-    if (!username || !password || username.trim().length < 3 || password.length < 6) {
-      return res.status(400).json({ error: 'Username (min 3 chars) and password (min 6 chars) required' });
-    }
-
-    if (serverUsers.some((u) => u.username.toLowerCase() === username.trim().toLowerCase())) {
-      return res.status(409).json({ error: 'Username already registered' });
-    }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const passwordHash = hashPasswordNode(password, salt);
-    const newUser: ServerUser = {
-      id: `usr_${Date.now()}`,
-      username: username.trim(),
-      email: email || `${username.trim()}@trader.internal`,
-      role: 'TRADER',
-      salt,
-      passwordHash,
-      createdAt: new Date().toISOString(),
+    const expiresAt = Date.now() + 4 * 60 * 60 * 1000; // 4 hours
+    const userPayload = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt,
     };
 
-    serverUsers.push(newUser);
-    const token = crypto.randomBytes(32).toString('hex');
-    activeTokens.add(token);
+    activeTokens.set(token, {
+      user: userPayload,
+      expiresAt,
+    });
 
     return res.json({
       success: true,
       token,
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        role: newUser.role,
-        createdAt: newUser.createdAt,
-      },
+      user: userPayload,
+      expiresAt,
     });
   });
 
@@ -132,10 +171,12 @@ async function startServer() {
       return res.status(401).json({ authenticated: false });
     }
     const token = authHeader.split(' ')[1];
-    if (!activeTokens.has(token)) {
+    const session = activeTokens.get(token);
+    if (!session || session.expiresAt < Date.now()) {
+      if (session) activeTokens.delete(token);
       return res.status(401).json({ authenticated: false });
     }
-    return res.json({ authenticated: true });
+    return res.json({ authenticated: true, user: session.user });
   });
 
   // Auth: Logout Endpoint

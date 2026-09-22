@@ -25,9 +25,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   sessionExpiredNotice,
   onViewLanding,
 }) => {
-  // Default login credentials as requested: matchestool254 / tool911
-  const [username, setUsername] = useState<string>('matchestool254');
-  const [password, setPassword] = useState<string>('tool911');
+  // Blank login credentials by default; authentication is handled securely on the server
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(sessionExpiredNotice || null);
@@ -211,7 +211,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     autoComplete="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="matchestool254"
+                    placeholder="Enter username"
                     className="w-full pl-9 pr-3 py-2.5 text-xs bg-slate-900/90 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/40 transition-all font-mono"
                   />
                 </div>
