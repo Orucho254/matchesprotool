@@ -244,22 +244,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               </div>
 
-              {/* Quick Fill / Authorized Credentials Helper */}
-              <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <span className="truncate">Default: <strong className="text-emerald-400">matchestool1254</strong> &bull; <strong className="text-emerald-400">tool911</strong></span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUsername('matchestool1254');
-                    setPassword('tool911');
-                    setErrorMessage(null);
-                  }}
-                  className="px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold transition-colors cursor-pointer shrink-0 ml-2"
-                >
-                  Quick Fill
-                </button>
-              </div>
-
               {/* Submit Button */}
               <button
                 type="submit"

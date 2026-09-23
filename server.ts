@@ -125,12 +125,10 @@ function clearFailures(identifier: string) {
 async function startServer() {
   const app = express();
 
-  // Dynamic PORT from env or CLI arguments, defaulting to 3000
-  let PORT = 3000;
-  if (process.env.PORT) {
-    const envPort = parseInt(process.env.PORT, 10);
-    if (!isNaN(envPort)) PORT = envPort;
-  }
+  // Dev server and API backend must listen on port 3000 (DEFAULT_APP_PORT) behind NGINX (which listens on 8080)
+  const defaultPort = parseInt(process.env.DEFAULT_APP_PORT || process.env.APP_PORT || '3000', 10);
+  let PORT = defaultPort;
+
   const portArgIdx = process.argv.indexOf('--port');
   if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
     const argPort = parseInt(process.argv[portArgIdx + 1], 10);
@@ -139,9 +137,11 @@ async function startServer() {
 
   // Permissive CORS middleware for dev, preview and iframe environments
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin || '*';
+    res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.header('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
