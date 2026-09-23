@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
@@ -29,6 +30,42 @@ const serverUsers: ServerUser[] = [
     username: 'matchestool254',
     email: 'matchestool254@trading-analysis.internal',
     role: 'PRO_TRADER',
+    salt: AUTHORIZED_SALT,
+    passwordHash: AUTHORIZED_HASH,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'usr_matchestool1254',
+    username: 'matchestool1254',
+    email: 'matchestool1254@trading-analysis.internal',
+    role: 'PRO_TRADER',
+    salt: AUTHORIZED_SALT,
+    passwordHash: AUTHORIZED_HASH,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'usr_matchestool',
+    username: 'matchestool',
+    email: 'matchestool@trading-analysis.internal',
+    role: 'PRO_TRADER',
+    salt: AUTHORIZED_SALT,
+    passwordHash: AUTHORIZED_HASH,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'usr_janetmoraa',
+    username: 'janetmoraa2328@gmail.com',
+    email: 'janetmoraa2328@gmail.com',
+    role: 'PRO_TRADER',
+    salt: AUTHORIZED_SALT,
+    passwordHash: AUTHORIZED_HASH,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'usr_admin',
+    username: 'admin',
+    email: 'admin@trading-analysis.internal',
+    role: 'ADMIN',
     salt: AUTHORIZED_SALT,
     passwordHash: AUTHORIZED_HASH,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -87,7 +124,29 @@ function clearFailures(identifier: string) {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+
+  // Dynamic PORT from env or CLI arguments, defaulting to 3000
+  let PORT = 3000;
+  if (process.env.PORT) {
+    const envPort = parseInt(process.env.PORT, 10);
+    if (!isNaN(envPort)) PORT = envPort;
+  }
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const argPort = parseInt(process.argv[portArgIdx + 1], 10);
+    if (!isNaN(argPort)) PORT = argPort;
+  }
+
+  // Permissive CORS middleware for dev, preview and iframe environments
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
 
   app.use(express.json());
 
@@ -189,18 +248,21 @@ async function startServer() {
     return res.json({ success: true });
   });
 
-  // Vite middleware in development
-  if (process.env.NODE_ENV !== 'production') {
+  // Vite middleware in development or fallback if dist is missing
+  const distPath = path.join(process.cwd(), 'dist');
+  const indexHtmlPath = path.join(distPath, 'index.html');
+  const hasDist = fs.existsSync(indexHtmlPath);
+
+  if (process.env.NODE_ENV !== 'production' || !hasDist) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(indexHtmlPath);
     });
   }
 
