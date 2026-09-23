@@ -194,6 +194,11 @@ class AuthService {
     return this.currentAuthState;
   }
 
+  // Get current authentication token
+  public getToken(): string | null {
+    return this.currentAuthState.token || null;
+  }
+
   public subscribe(listener: (auth: AuthState) => void): () => void {
     this.listeners.push(listener);
     listener(this.currentAuthState);
