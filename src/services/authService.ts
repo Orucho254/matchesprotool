@@ -262,12 +262,15 @@ class AuthService {
           `[Auth] Server returned non-JSON content-type "${contentType}" with status ${response.status}:`,
           text.slice(0, 300)
         );
+        let errorMsg = `Authentication server returned unexpected response (HTTP ${response.status}). Please check server logs.`;
+        if (response.status === 404) {
+          errorMsg = `Authentication endpoint not found (HTTP 404 at ${LOGIN_URL}). Please verify backend server routing.`;
+        } else if (response.status === 405) {
+          errorMsg = `Authentication server rejected HTTP POST method (HTTP 405 Method Not Allowed at ${LOGIN_URL}). Please ensure API routes are deployed.`;
+        }
         return {
           success: false,
-          error:
-            response.status === 404
-              ? `Authentication endpoint not found (HTTP 404 at ${LOGIN_URL}). Please verify backend server routing.`
-              : `Authentication server returned unexpected response (HTTP ${response.status}). Please check server logs.`,
+          error: errorMsg,
         };
       }
 
