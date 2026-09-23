@@ -13,21 +13,13 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    // Production Security: Remove source maps and strip console/debugger
+    // Production Security: Remove source maps and strip debugger
     build: {
       sourcemap: false,
       minify: 'esbuild' as const,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            charts: ['recharts'],
-          },
-        },
-      },
     },
     esbuild: {
-      drop: (isProd ? ['console', 'debugger'] : []) as ('console' | 'debugger')[],
+      drop: (isProd ? ['debugger'] : []) as ('debugger')[],
       legalComments: 'none' as const,
     },
     server: {
